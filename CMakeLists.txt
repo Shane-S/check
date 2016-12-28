@@ -115,11 +115,33 @@ check_function_exists(strsignal HAVE_DECL_STRSIGNAL)
 check_function_exists(_getpid HAVE__GETPID)
 check_function_exists(_strdup HAVE__STRDUP)
 
+# snprintf, vsnprintf, etc. are inline and call internal functions in vs 2015 (msvc_ver = 1900);
+# need to add legacy_stdio_defintions.lib for them to be linkable
+#
+# in 2013 and below these functions are macros #defined to _<function>, so use those instead
+set(SNPRINTF_FUNC snprintf)
+set(VSNPRINT_FUNC vsnprintf)
+if(MSVC)
+    if(MSVC_VERSION GREATER 1899)
+        cmake_push_check_state()
+        set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} legacy_stdio_definitions.lib)
+    else(MSVC_VERSION GREATER 1899)
+        set(SNPRINTF_FUNC _snprintf)
+        set(VSNPRINT_FUNC _vsnprintf)
+        add_definitions(-Dsnprintf=_snprintf)
+        add_definitions(-Dvsnprintf=_vsnprintf)
+    endif()
+endif()
+
 # printf related checks
 check_function_exists(snprintf HAVE_SNPRINTF_FUNCTION)
 check_function_exists(vsnprintf HAVE_VSNPRINTF_FUNCTION)
 check_symbol_exists(snprintf stdio.h HAVE_SNPRINTF_SYMBOL)
 check_symbol_exists(vsnprintf stdio.h HAVE_VSNPRINTF_SYMBOL)
+
+if(MSVC AND MSVC_VERSION GREATER 1899)
+    cmake_pop_check_state()
+endif()
 
 if(NOT HAVE_SNPRINTF_FUNCTION AND NOT HAVE_SNPRINTF_SYMBOL)
     add_definitions(-Dsnprintf=rpl_snprintf)
@@ -174,7 +196,7 @@ check_symbol_exists(SSIZE_MAX "limits.h"   HAVE_SSIZE_MAX)
 
 # Check for  tv_sec in struct timeval
 if(NOT HAVE_SYS_TIME_H)
-    if(MSVC)
+    if(MSVC)    
         check_struct_member("struct timeval" tv_sec "Winsock2.h" HAVE_STRUCT_TIMEVAL_TV_SEC)
         check_struct_member("struct timeval" tv_usec "Winsock2.h" HAVE_STRUCT_TIMEVAL_TV_USEC)
         check_struct_member("struct timespec" tv_sec "Winsock2.h" HAVE_WINSOCK2_H_STRUCT_TIMESPEC_TV_SEC)
